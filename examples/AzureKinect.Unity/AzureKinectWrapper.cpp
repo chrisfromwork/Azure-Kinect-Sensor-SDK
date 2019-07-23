@@ -71,8 +71,8 @@ bool AzureKinectWrapper::TryGetShaderResourceViews(unsigned int index,
     rgbWidth = resourcesMap[index].rgbFrameDimensions.width;
     rgbHeight = resourcesMap[index].rgbFrameDimensions.height;
     rgbBpp = resourcesMap[index].rgbFrameDimensions.bpp;
-    
-	irSrv = resourcesMap[index].irSrv;
+
+    irSrv = resourcesMap[index].irSrv;
     irWidth = resourcesMap[index].irFrameDimensions.width;
     irHeight = resourcesMap[index].irFrameDimensions.height;
     irBpp = resourcesMap[index].irFrameDimensions.bpp;
@@ -108,15 +108,23 @@ bool AzureKinectWrapper::TryStartStreams(unsigned int index)
         goto FailedExit;
     }
 
-    config.color_format = K4A_IMAGE_FORMAT_COLOR_MJPG;
+    config.color_format = K4A_IMAGE_FORMAT_COLOR_BGRA32;
     config.color_resolution = K4A_COLOR_RESOLUTION_2160P;
-    config.depth_mode = K4A_DEPTH_MODE_NFOV_UNBINNED;
+    config.depth_mode = K4A_DEPTH_MODE_WFOV_UNBINNED;
     config.camera_fps = K4A_FRAMES_PER_SECOND_30;
+
+    // Make sure the IMU has been stopped before starting capture
+    k4a_device_stop_imu(device);
 
     if (K4A_RESULT_SUCCEEDED != k4a_device_start_cameras(device, &config))
     {
         OutputDebugString(L"Failed to start cameras: " + index);
         goto FailedExit;
+    }
+
+    if (K4A_RESULT_SUCCEEDED != k4a_device_start_imu(device))
+    {
+        OutputDebugString(L"Failed to start imu: " + index);
     }
 
     deviceMap[index] = device;
@@ -134,23 +142,24 @@ bool AzureKinectWrapper::TryUpdate()
 {
     if (deviceMap.size() == 0)
     {
+        OutputDebugString(L"No devices created, update failed");
         return false;
     }
 
     k4a_capture_t capture = NULL;
-    const int32_t timeout = 1000 / 60;
     bool observedFailure = false;
     for (auto pair : deviceMap)
     {
         auto device = pair.second;
         k4a_image_t image;
 
-        switch (k4a_device_get_capture(device, &capture, timeout))
+        switch (k4a_device_get_capture(device, &capture, 0))
         {
         case K4A_WAIT_RESULT_SUCCEEDED:
             break;
         case K4A_WAIT_RESULT_TIMEOUT:
             OutputDebugString(L"Timed out waiting for capture: " + pair.first);
+            observedFailure = true;
             continue;
         case K4A_WAIT_RESULT_FAILED:
             OutputDebugString(L"Failed to capture: " + pair.first);
@@ -158,16 +167,15 @@ bool AzureKinectWrapper::TryUpdate()
             continue;
         }
 
-        DeviceResources resources;
         EnterCriticalSection(&resourcesCritSec);
-        if (resourcesMap.count(pair.first) > 0)
+        if (resourcesMap.count(pair.first) == 0)
         {
-            resources = resourcesMap[pair.first];
+            resourcesMap[pair.first] = DeviceResources{
+                nullptr, nullptr, {}, nullptr, nullptr, {}, nullptr, nullptr, {}
+            };
         }
-        else
-        {
-            resources = DeviceResources{ nullptr, nullptr, {}, nullptr, nullptr, {}, nullptr, nullptr, {} };
-        }
+
+        DeviceResources &resources = resourcesMap[pair.first];
         LeaveCriticalSection(&resourcesCritSec);
 
         image = k4a_capture_get_color_image(capture);
@@ -183,7 +191,6 @@ bool AzureKinectWrapper::TryUpdate()
         else
         {
             OutputDebugString(L"Failed to capture rgb image: " + pair.first);
-            observedFailure = true;
         }
 
         image = k4a_capture_get_ir_image(capture);
@@ -199,7 +206,6 @@ bool AzureKinectWrapper::TryUpdate()
         else
         {
             OutputDebugString(L"Failed to capture ir image: " + pair.first);
-            observedFailure = true;
         }
 
         image = k4a_capture_get_depth_image(capture);
@@ -215,14 +221,9 @@ bool AzureKinectWrapper::TryUpdate()
         else
         {
             OutputDebugString(L"Failed to capture depth image: " + pair.first);
-            observedFailure = true;
         }
 
         k4a_capture_release(capture);
-
-        EnterCriticalSection(&resourcesCritSec);
-        resourcesMap[pair.first] = resources;
-        LeaveCriticalSection(&resourcesCritSec);
     }
 
     return !observedFailure;

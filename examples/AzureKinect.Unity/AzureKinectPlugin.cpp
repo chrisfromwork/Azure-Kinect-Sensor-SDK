@@ -7,9 +7,9 @@
 
 #define UNITYDLL EXTERN_C __declspec(dllexport)
 
-static IUnityInterfaces *unityInterfaces = nullptr;
-static IUnityGraphics *graphics = nullptr;
-static ID3D11Device *device = nullptr;
+static IUnityInterfaces *s_unityInterfaces = nullptr;
+static IUnityGraphics *s_graphics = nullptr;
+static ID3D11Device *s_device = nullptr;
 std::unique_ptr<AzureKinectWrapper> azureKinectWrapper;
 
 static void UNITY_INTERFACE_API OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType)
@@ -18,11 +18,11 @@ static void UNITY_INTERFACE_API OnGraphicsDeviceEvent(UnityGfxDeviceEventType ev
     {
     case kUnityGfxDeviceEventInitialize:
     {
-        IUnityGraphicsD3D11 *d3d11 = unityInterfaces->Get<IUnityGraphicsD3D11>();
+        IUnityGraphicsD3D11 *d3d11 = s_unityInterfaces->Get<IUnityGraphicsD3D11>();
         if (d3d11 != nullptr)
         {
             OutputDebugString(L"DirectX device obtained.");
-            device = d3d11->GetDevice();
+            s_device = d3d11->GetDevice();
         }
         else
         {
@@ -32,7 +32,7 @@ static void UNITY_INTERFACE_API OnGraphicsDeviceEvent(UnityGfxDeviceEventType ev
     break;
     case kUnityGfxDeviceEventShutdown:
         OutputDebugString(L"Destroying DirectX device.");
-        device = nullptr;
+        s_device = nullptr;
         break;
     }
 }
@@ -40,20 +40,20 @@ static void UNITY_INTERFACE_API OnGraphicsDeviceEvent(UnityGfxDeviceEventType ev
 void UNITY_INTERFACE_API UnityPluginLoad(IUnityInterfaces *unityInterfaces)
 {
     OutputDebugString(L"UnityPluginLoad Event called for AzureKinect.Unity. UnityInterfaces was null: " + (unityInterfaces == nullptr));
-    this->unityInterfaces = unityInterfaces;
-    graphics = this->unityInterfaces->Get<IUnityGraphics>();
-    graphics->RegisterDeviceEventCallback(OnGraphicsDeviceEvent);
+    s_unityInterfaces = unityInterfaces;
+    s_graphics = s_unityInterfaces->Get<IUnityGraphics>();
+    s_graphics->RegisterDeviceEventCallback(OnGraphicsDeviceEvent);
     OnGraphicsDeviceEvent(kUnityGfxDeviceEventInitialize);
 }
 
 void UNITY_INTERFACE_API UnityPluginUnload()
 {
     OutputDebugString(L"UnityPluginUnload Event called for AzureKinect.Unity.");
-    graphics->UnregisterDeviceEventCallback(OnGraphicsDeviceEvent);
+    s_graphics->UnregisterDeviceEventCallback(OnGraphicsDeviceEvent);
     OnGraphicsDeviceEvent(kUnityGfxDeviceEventShutdown);
-    graphics = nullptr;
-    unityInterfaces = nullptr;
-    device = nullptr;
+    s_graphics = nullptr;
+    s_unityInterfaces = nullptr;
+    s_device = nullptr;
 }
 
 UNITYDLL uint32_t GetDeviceCount()
@@ -68,7 +68,7 @@ UNITYDLL bool TryGetDeviceSerialNumber(uint32_t index, char *serialNum, uint32_t
 
 UNITYDLL bool Initialize()
 {
-    if (device == nullptr)
+    if (s_device == nullptr)
     {
         OutputDebugString(L"DirectX device not initialized, unable to initialize azure kinect plugin.");
         return false;
@@ -76,7 +76,7 @@ UNITYDLL bool Initialize()
 
     if (azureKinectWrapper == nullptr)
     {
-        azureKinectWrapper = std::make_unique<AzureKinectWrapper>(device);
+        azureKinectWrapper = std::make_unique<AzureKinectWrapper>(s_device);
     }
 
     return true;
@@ -86,8 +86,7 @@ UNITYDLL bool TryStartStreams(unsigned int index)
 {
     if (azureKinectWrapper != nullptr)
     {
-        azureKinectWrapper->TryStartStreams(index);
-        return true;
+        return azureKinectWrapper->TryStartStreams(index);
     }
 
     return false;
@@ -97,8 +96,7 @@ UNITYDLL bool TryUpdate()
 {
     if (azureKinectWrapper != nullptr)
     {
-        azureKinectWrapper->TryUpdate();
-        return true;
+        return azureKinectWrapper->TryUpdate();
     }
 
     return false;
@@ -112,7 +110,7 @@ UNITYDLL void StopStreaming(unsigned int index)
     }
 }
 
-UNITYDLL bool TryGetShaderResources(unsigned int index,
+UNITYDLL bool TryGetShaderResourceViews(unsigned int index,
                                     ID3D11ShaderResourceView *&rgbSrv,
                                     unsigned int &rgbWidth,
                                     unsigned int &rgbHeight,
