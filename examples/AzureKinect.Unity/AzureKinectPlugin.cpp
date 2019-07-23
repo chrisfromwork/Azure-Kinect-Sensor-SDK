@@ -39,7 +39,8 @@ static void UNITY_INTERFACE_API OnGraphicsDeviceEvent(UnityGfxDeviceEventType ev
 
 void UNITY_INTERFACE_API UnityPluginLoad(IUnityInterfaces *unityInterfaces)
 {
-    OutputDebugString(L"UnityPluginLoad Event called for AzureKinect.Unity. UnityInterfaces was null: " + (unityInterfaces == nullptr));
+    OutputDebugString(L"UnityPluginLoad Event called for AzureKinect.Unity. UnityInterfaces was null: " +
+                      (unityInterfaces == nullptr));
     s_unityInterfaces = unityInterfaces;
     s_graphics = s_unityInterfaces->Get<IUnityGraphics>();
     s_graphics->RegisterDeviceEventCallback(OnGraphicsDeviceEvent);
@@ -59,11 +60,6 @@ void UNITY_INTERFACE_API UnityPluginUnload()
 UNITYDLL uint32_t GetDeviceCount()
 {
     return AzureKinectWrapper::GetDeviceCount();
-}
-
-UNITYDLL bool TryGetDeviceSerialNumber(uint32_t index, char *serialNum, uint32_t serialNumSize)
-{
-    return AzureKinectWrapper::TryGetDeviceSerialNumber(index, serialNum, serialNumSize);
 }
 
 UNITYDLL bool Initialize()
@@ -110,36 +106,45 @@ UNITYDLL void StopStreaming(unsigned int index)
     }
 }
 
-UNITYDLL bool TryGetShaderResourceViews(unsigned int index,
-                                    ID3D11ShaderResourceView *&rgbSrv,
-                                    unsigned int &rgbWidth,
-                                    unsigned int &rgbHeight,
-                                    unsigned int &rgbBpp,
-                                    ID3D11ShaderResourceView *&irSrv,
-                                    unsigned int &irWidth,
-                                    unsigned int &irHeight,
-                                    unsigned int &irBpp,
-                                    ID3D11ShaderResourceView *&depthSrv,
-                                    unsigned int &depthWidth,
-                                    unsigned int &depthHeight,
-                                    unsigned int &depthBpp)
+UNITYDLL bool TryGetDeviceSerialNumber(uint32_t index, char *serialNum, uint32_t serialNumSize)
 {
     if (azureKinectWrapper != nullptr)
     {
-        return azureKinectWrapper->TryGetShaderResourceViews(
-			index,
-			rgbSrv,
-			rgbWidth,
-			rgbHeight,
-			rgbBpp,
-			irSrv,
-			irWidth,
-			irHeight,
-			irBpp,
-			depthSrv,
-			depthWidth,
-			depthHeight,
-			depthBpp);
+        return azureKinectWrapper->TryGetDeviceSerialNumber(index, serialNum, serialNumSize);
+    }
+
+    return false;
+}
+
+UNITYDLL bool TryGetShaderResourceViews(unsigned int index,
+                                        ID3D11ShaderResourceView *&rgbSrv,
+                                        unsigned int &rgbWidth,
+                                        unsigned int &rgbHeight,
+                                        unsigned int &rgbBpp,
+                                        ID3D11ShaderResourceView *&irSrv,
+                                        unsigned int &irWidth,
+                                        unsigned int &irHeight,
+                                        unsigned int &irBpp,
+                                        ID3D11ShaderResourceView *&depthSrv,
+                                        unsigned int &depthWidth,
+                                        unsigned int &depthHeight,
+                                        unsigned int &depthBpp)
+{
+    if (azureKinectWrapper != nullptr)
+    {
+        return azureKinectWrapper->TryGetShaderResourceViews(index,
+                                                             rgbSrv,
+                                                             rgbWidth,
+                                                             rgbHeight,
+                                                             rgbBpp,
+                                                             irSrv,
+                                                             irWidth,
+                                                             irHeight,
+                                                             irBpp,
+                                                             depthSrv,
+                                                             depthWidth,
+                                                             depthHeight,
+                                                             depthBpp);
     }
 
     return false;

@@ -28,8 +28,18 @@ bool AzureKinectWrapper::TryGetDeviceSerialNumber(unsigned int index, char *seri
     }
 
     k4a_device_t device = NULL;
-    if (K4A_RESULT_SUCCEEDED != k4a_device_open(index, &device))
+    bool closeDevice = false;
+    if (deviceMap.count(index) > 0)
     {
+        device = deviceMap[index];
+    }
+    else if (K4A_RESULT_SUCCEEDED == k4a_device_open(index, &device))
+    {
+        closeDevice = true;
+    }
+    else
+    {
+        k4a_device_close(device);
         return false;
     }
 
@@ -40,7 +50,10 @@ bool AzureKinectWrapper::TryGetDeviceSerialNumber(unsigned int index, char *seri
         return false;
     }
 
-    k4a_device_close(device);
+    if (closeDevice)
+    {
+        k4a_device_close(device);
+    }
     device = NULL;
     return true;
 }
@@ -108,23 +121,38 @@ bool AzureKinectWrapper::TryStartStreams(unsigned int index)
         goto FailedExit;
     }
 
+    // Not all of the modes support 30fps, view k4a.c to determine a valid configuration
     config.color_format = K4A_IMAGE_FORMAT_COLOR_BGRA32;
     config.color_resolution = K4A_COLOR_RESOLUTION_2160P;
-    config.depth_mode = K4A_DEPTH_MODE_WFOV_UNBINNED;
+    config.depth_mode = K4A_DEPTH_MODE_WFOV_2X2BINNED;
     config.camera_fps = K4A_FRAMES_PER_SECOND_30;
 
-    // Make sure the IMU has been stopped before starting capture
-    k4a_device_stop_imu(device);
+    k4a_calibration_t calibration;
+    if (K4A_RESULT_SUCCEEDED ==
+        k4a_device_get_calibration(device, config.depth_mode, config.color_resolution, &calibration))
+    {
+        calibrationMap[index] = calibration;
+
+        pinhole = create_pinhole(120, 512, 512);
+        k4a_image_t lut = NULL;
+        k4a_image_create(K4A_IMAGE_FORMAT_CUSTOM,
+                         pinhole.width,
+                         pinhole.height,
+                         pinhole.width * (int)sizeof(coordinate_t),
+                         &lut);
+
+        create_undistortion_lut(&calibration, K4A_CALIBRATION_TYPE_DEPTH, &pinhole, lut);
+        lutMap[index] = lut;
+    }
+    else
+    {
+        OutputDebugString(L"Failed to obtain calibraiton: " + index);
+    }
 
     if (K4A_RESULT_SUCCEEDED != k4a_device_start_cameras(device, &config))
     {
         OutputDebugString(L"Failed to start cameras: " + index);
         goto FailedExit;
-    }
-
-    if (K4A_RESULT_SUCCEEDED != k4a_device_start_imu(device))
-    {
-        OutputDebugString(L"Failed to start imu: " + index);
     }
 
     deviceMap[index] = device;
@@ -185,7 +213,7 @@ bool AzureKinectWrapper::TryUpdate()
                             resources.rgbSrv,
                             resources.rgbTexture,
                             resources.rgbFrameDimensions,
-                            DXGI_FORMAT_R8G8B8A8_UNORM);
+                            DXGI_FORMAT_B8G8R8A8_UNORM);
             k4a_image_release(image);
         }
         else
@@ -211,12 +239,22 @@ bool AzureKinectWrapper::TryUpdate()
         image = k4a_capture_get_depth_image(capture);
         if (image != NULL)
         {
-            UpdateResources(image,
+            k4a_image_t undistorted = NULL;
+            k4a_image_create(K4A_IMAGE_FORMAT_DEPTH16,
+                             pinhole.width,
+                             pinhole.height,
+                             pinhole.width * (int)sizeof(uint16_t),
+                             &undistorted);
+
+			remap(image, lutMap[pair.first], undistorted);
+            UpdateResources(undistorted,
                             resources.depthSrv,
                             resources.depthTexture,
                             resources.depthFrameDimensions,
                             DXGI_FORMAT_R16_UNORM);
+
             k4a_image_release(image);
+            k4a_image_release(undistorted);
         }
         else
         {
@@ -241,6 +279,12 @@ void AzureKinectWrapper::StopStreaming(unsigned int index)
     {
         OutputDebugString(L"Asked to close unknown device: " + index);
     }
+
+    if (lutMap.count(index) > 0)
+    {
+        k4a_image_release(lutMap[index]);
+        lutMap.erase(index);
+	}
 }
 
 void AzureKinectWrapper::UpdateResources(k4a_image_t image,
@@ -258,12 +302,12 @@ void AzureKinectWrapper::UpdateResources(k4a_image_t image,
 
     if (tex == nullptr)
     {
-        DirectXHelper::CreateTexture(device, buffer, dim.width, dim.height, dim.bpp, format);
+        tex = DirectXHelper::CreateTexture(device, buffer, dim.width, dim.height, dim.bpp, format);
     }
 
     if (srv == nullptr)
     {
-        DirectXHelper::CreateShaderResourceView(device, tex, format);
+        srv = DirectXHelper::CreateShaderResourceView(device, tex, format);
     }
     else
     {

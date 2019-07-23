@@ -4,10 +4,10 @@ class AzureKinectWrapper
 {
 public:
     static unsigned int GetDeviceCount();
-    static bool TryGetDeviceSerialNumber(unsigned int index, char *serialNum, unsigned int serialNumSize);
 
     AzureKinectWrapper(ID3D11Device *device);
     ~AzureKinectWrapper();
+    bool TryGetDeviceSerialNumber(unsigned int index, char *serialNum, unsigned int serialNumSize);
     bool TryGetShaderResourceViews(unsigned int index,
                                    ID3D11ShaderResourceView *&rgbSrv,
                                    unsigned int &rgbWidth,
@@ -55,6 +55,9 @@ private:
     ID3D11Device *device;
     static std::shared_ptr<AzureKinectWrapper> instance;
     std::map<int, k4a_device_t> deviceMap;
+    std::map<int, k4a_calibration_t> calibrationMap;
+    std::map<int, k4a_image_t> lutMap;
+	pinhole_t pinhole;
     std::map<int, DeviceResources> resourcesMap;
     CRITICAL_SECTION resourcesCritSec;
 };

@@ -39,6 +39,9 @@
     <ClInclude Include="IUnityInterface.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="k4aHelper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.cpp">

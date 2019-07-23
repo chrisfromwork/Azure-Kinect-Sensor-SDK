@@ -72,8 +72,8 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <LibraryPath>C:\Program Files\Azure Kinect SDK\sdk\windows-desktop\amd64\debug\lib;$(LibraryPath)</LibraryPath>
-    <IncludePath>$(ProgramW6432)\Azure Kinect SDK\sdk\include;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Program Files\Azure Kinect SDK v1.1.1\sdk\windows-desktop\amd64\debug\lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(ProgramW6432)\Azure Kinect SDK v1.1.1\sdk\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
@@ -165,6 +165,7 @@
     <ClInclude Include="IUnityGraphics.h" />
     <ClInclude Include="IUnityGraphicsD3D11.h" />
     <ClInclude Include="IUnityInterface.h" />
+    <ClInclude Include="k4aHelper.h" />
     <ClInclude Include="pch.h" />
   </ItemGroup>
   <ItemGroup>
